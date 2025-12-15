@@ -462,4 +462,285 @@ const DEFAULT_PRODUCTS = [
       const r = {};
       const keys = Object.keys(row);
       // possible headers
-      const n
+      const nameKey = keys.find(k => /nama|name|product|item/i.test(k)) || keys[0];
+      const typeKey = keys.find(k => /type|tipe/i.test(k)) || keys[1] || null;
+      const sizeKey = keys.find(k => /ukuran|size|panjang/i.test(k)) || null;
+      const priceKey = keys.find(k => /harga|price|cost|price_idr/i.test(k)) || keys.find(k=>/rp|idr/i.test(k)) || keys[2] || null;
+      const discKey = keys.find(k => /diskon|discount|disc/i.test(k)) || null;
+      const photoKey = keys.find(k => /foto|image|gambar|img|picture/i.test(k)) || null;
+
+      r.name = row[nameKey] ?? '';
+      r.type = typeKey ? row[typeKey] : '';
+      r.size = sizeKey ? row[sizeKey] : '';
+      r.priceRaw = priceKey ? row[priceKey] : '';
+      r.discount = discKey ? Number(row[discKey]) || 0 : 0;
+      r.photo = photoKey ? row[photoKey] : '';
+
+      // normalize price to number
+      let p = r.priceRaw;
+      if (typeof p === 'string'){
+        p = p.replace(/[^\d,.-]/g, '');
+        p = p.replace(/,(?=\d{3}(?:,|$))/g, '');
+        p = p.replace(/,(?=\d{2}$)/, '.');
+      }
+      r.price = Number(p) || 0;
+      r.id = (r.name + '|' + r.type + '|' + r.size).trim();
+      return r;
+    }
+
+    // Build grouped catalog from flat DEFAULT_PRODUCTS entries.
+    function buildCatalog(list){
+      const groups = {};
+      list.forEach(it=>{
+        // derive base name by removing ' TYPE ...' if present
+        const base = String(it.name).replace(/\s+TYPE\s.*$/i,'').trim();
+        const type = it.type || '';
+        const size = it.size || '';
+        const price = Number(it.price)||0;
+        const discount = Number(it.discount)||0;
+        if (!groups[base]) groups[base] = { name: base, photo: it.photo || '', variants: {} };
+        if (!groups[base].variants[type]) groups[base].variants[type] = { type: type, sizes: [] };
+        groups[base].variants[type].sizes.push({ size, price, discount });
+      });
+      // convert to array
+      return Object.values(groups).map(g=>({
+        name: g.name,
+        photo: g.photo,
+        variants: Object.values(g.variants)
+      }));
+    }
+
+    // Render products grid — simplified card with type & size selectors
+    function renderGrid(list){
+      grid.innerHTML = '';
+      if (!list.length) {
+        grid.innerHTML = '<div style="padding:20px;background:#fff;border-radius:8px">Tidak ada produk</div>';
+        totalProductsEl.textContent = 0;
+        return;
+      }
+      totalProductsEl.textContent = list.length;
+      list.forEach(p => {
+        const card = document.createElement('div'); card.className = 'card';
+        const thumb = document.createElement('div'); thumb.className = 'thumb';
+        const img = document.createElement('img'); img.alt = p.name || 'produk';
+        // gunakan helper untuk menentukan sumber gambar
+        img.src = getProductImageURL(p);
+        thumb.appendChild(img);
+        card.appendChild(thumb);
+
+        const meta = document.createElement('div'); meta.className = 'meta';
+        meta.innerHTML = `<div class="title">${p.name}</div>`;
+        card.appendChild(meta);
+
+        // discount badge (updated when price updates)
+        const badge = document.createElement('div'); badge.className = 'badge-discount'; badge.style.display = 'none';
+        thumb.appendChild(badge);
+
+        // selectors for type and size (build selectors, keep price display separate)
+        const controls = document.createElement('div'); controls.style.marginTop = '8px';
+        const typeSel = document.createElement('select'); typeSel.style.padding='8px'; typeSel.style.borderRadius='6px'; typeSel.style.minWidth='120px'; typeSel.style.minHeight='36px';
+        p.variants.forEach((v, idx)=>{ const opt = document.createElement('option'); opt.value = idx; opt.textContent = v.type || '(no type)'; typeSel.appendChild(opt); });
+        controls.appendChild(typeSel);
+
+        const sizeSel = document.createElement('select'); sizeSel.style.marginLeft='8px'; sizeSel.style.padding='8px'; sizeSel.style.borderRadius='6px'; sizeSel.style.minWidth='120px'; sizeSel.style.minHeight='36px';
+        controls.appendChild(sizeSel);
+
+        const priceInfo = document.createElement('div'); priceInfo.style.marginTop='8px'; priceInfo.style.fontWeight='700'; priceInfo.style.cursor='default';
+        // place controls first (priceInfo will be placed into priceRow later)
+        card.appendChild(controls);
+
+        // populate size options for a given variant (only called when type changes or initial render)
+        function populateSizes(variant){
+          sizeSel.innerHTML = '';
+          variant.sizes.forEach((s, i)=>{
+            const o = document.createElement('option');
+            o.value = i;
+            const label = `${s.size} — ${formatIDR(s.price)}${s.discount?(' (-'+s.discount+'%)'):''}`;
+            o.textContent = label;
+            sizeSel.appendChild(o);
+          });
+          sizeSel.selectedIndex = 0;
+        }
+
+        // update displayed price based on current typeSel and sizeSel
+        function updatePrice(){
+          const variant = p.variants[Number(typeSel.value) || 0];
+          const idx = Number(sizeSel.value) || 0;
+          const s = variant && variant.sizes ? variant.sizes[idx] : null;
+          if (!s){
+            priceInfo.innerHTML = '-';
+            badge.style.display = 'none';
+            return;
+          }
+          if (s.discount && Number(s.discount) > 0){
+            const orig = formatIDR(s.price);
+            const discPrice = formatIDR(Math.round(s.price*(100-Number(s.discount))/100));
+            priceInfo.innerHTML = `
+              <div style="color:var(--muted);text-decoration:line-through">${orig}</div>
+              <div style="font-weight:800;color:#0b74ff;margin-top:6px">${discPrice}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px">(diskon ${s.discount}%)</div>
+            `;
+            badge.style.display = 'block'; badge.textContent = `-${s.discount}%`;
+          } else {
+            priceInfo.innerHTML = `<div style="font-weight:800">${formatIDR(s.price)}</div>`;
+            badge.style.display = 'none';
+          }
+        }
+
+        // wire events: when type changes, repopulate sizes once; when size changes, only update price
+        typeSel.addEventListener('change', ()=>{ const v = p.variants[Number(typeSel.value) || 0]; populateSizes(v); updatePrice(); sizeSel.focus(); });
+        sizeSel.addEventListener('change', updatePrice);
+        // initial populate and price update
+        populateSizes(p.variants[Number(typeSel.value) || 0]);
+        updatePrice();
+
+        const priceRow = document.createElement('div'); priceRow.className = 'price-row';
+        const addBtn = document.createElement('button'); addBtn.textContent = 'Tambah';
+        addBtn.addEventListener('click', ()=>{
+          const variant = p.variants[Number(typeSel.value) || 0];
+          const s = variant.sizes[Number(sizeSel.value) || 0];
+          // simpan foto menggunakan helper agar cart dapat menampilkan ikon
+          const item = { name: p.name, type: variant.type, size: s.size, price: s.price, discount: s.discount || 0, photo: getProductImageURL(p) };
+          addToCart(item, 1);
+        });
+        priceRow.appendChild(priceInfo);
+        priceRow.appendChild(addBtn);
+        card.appendChild(priceRow);
+        grid.appendChild(card);
+      });
+    }
+
+    // Add to cart (create stable id based on name|type|size)
+    function addToCart(product, qty){
+      const id = `${product.name}|${product.type||''}|${product.size||''}`;
+      if (!cart[id]) cart[id] = {product, qty:0};
+      cart[id].qty += qty;
+      if (cart[id].qty < 1) cart[id].qty = 1;
+      updateCartUI();
+    }
+
+    function removeFromCart(id){
+      delete cart[id];
+      updateCartUI();
+    }
+
+    function updateCartUI(){
+      const cartCount = Object.values(cart).reduce((s,i)=> s + i.qty,0);
+      const cartCountEl = document.getElementById('cartCount');
+      if (cartCount) {cartCountEl.style.display='inline-block'; cartCountEl.textContent = cartCount;} else cartCountEl.style.display='none';
+
+      const itemsEl = document.getElementById('cartItems'); itemsEl.innerHTML = '';
+      let subtotal = 0;
+      for (const [id, entry] of Object.entries(cart)){
+        const p = entry.product;
+        const discounted = p.discount ? Math.round(p.price * (100 - p.discount)/100) : p.price;
+        const lineTotal = discounted * entry.qty;
+        subtotal += lineTotal;
+
+        const item = document.createElement('div'); item.className = 'cart-item';
+        // tampilkan ikon produk: gunakan helper untuk mendapatkan url (baik dari p.photo atau picsum)
+        const img = document.createElement('img'); img.src = getProductImageURL(p);
+        item.appendChild(img);
+
+        const info = document.createElement('div'); info.style.flex='1';
+        info.innerHTML = `<div style="font-weight:700">${p.name}</div><div style="font-size:13px;color:#555">${p.type} ${p.size ? ('| ' + p.size) : ''}</div><div style="margin-top:6px">${formatIDR(discounted)} x <input class="qty" data-id="${id}" type="number" min="1" value="${entry.qty}" style="width:70px;padding:6px;border-radius:6px;border:1px solid #eee"/></div>`;
+        item.appendChild(info);
+        const rm = document.createElement('div');
+        rm.innerHTML = `<div style="font-weight:700">${formatIDR(lineTotal)}</div><div style="margin-top:8px"><button class="btn-ghost" data-id="${id}">Hapus</button></div>`;
+        item.appendChild(rm);
+        itemsEl.appendChild(item);
+      }
+      document.getElementById('subtotal').textContent = formatIDR(subtotal || 0);
+
+      // wire qty inputs and delete buttons
+      document.querySelectorAll('.qty').forEach(inp => {
+        inp.addEventListener('change', (e)=>{
+          const id = e.target.dataset.id; const v = Number(e.target.value) || 1; cart[id].qty = v; updateCartUI();
+        });
+      });
+      document.querySelectorAll('.btn-ghost[data-id]').forEach(b=> b.addEventListener('click', (e)=>{
+        const id = e.currentTarget.dataset.id; removeFromCart(id);
+      }));
+    }
+
+    // Toggle cart drawer
+    const cartToggle = document.getElementById('cartToggle');
+    const cartDrawer = document.getElementById('cartDrawer');
+    cartToggle.addEventListener('click', ()=>{
+      cartDrawer.style.display = cartDrawer.style.display === 'block' ? 'none' : 'block';
+    });
+
+    // Close cart drawer when clicking outside it
+    document.addEventListener('click', (e)=>{
+      const isClickInside = cartDrawer.contains(e.target) || cartToggle.contains(e.target);
+      if (!isClickInside && cartDrawer.style.display === 'block'){
+        cartDrawer.style.display = 'none';
+      }
+    });
+
+    // About modal handlers
+    const aboutModal = document.getElementById('aboutModal');
+    const aboutBtnEl = document.getElementById('aboutBtn');
+    const closeAbout = document.getElementById('closeAbout');
+    aboutBtnEl.addEventListener('click', (e)=>{ e.preventDefault(); aboutModal.style.display = 'flex'; aboutModal.setAttribute('aria-hidden','false'); });
+    closeAbout.addEventListener('click', ()=>{ aboutModal.style.display='none'; aboutModal.setAttribute('aria-hidden','true'); });
+    aboutModal.addEventListener('click', (e)=>{ if (e.target === aboutModal){ aboutModal.style.display='none'; aboutModal.setAttribute('aria-hidden','true'); } });
+
+    // Home link scrolls to top
+    document.getElementById('homeLink').addEventListener('click', (e)=>{ e.preventDefault(); window.scrollTo({top:0,behavior:'smooth'}); });
+
+    document.getElementById('clearCart').addEventListener('click', ()=>{ for(const k of Object.keys(cart)) delete cart[k]; updateCartUI(); });
+
+    // Checkout: build message and open WhatsApp (requires alamat diisi)
+    document.getElementById('checkoutBtn').addEventListener('click', ()=>{
+      const list = Object.values(cart);
+      if (!list.length) return alert('Keranjang kosong.');
+      const address = document.getElementById('addressInput').value.trim();
+      if (!address) return alert('Silakan isi Alamat / Catatan sebelum checkout.');
+      const pay = document.querySelector('input[name=pay]:checked').value;
+      // Build plain text message, then encode once for URL
+      let msg = 'Pesanan dari Toko Kabel LAN\n';
+      msg += '========================\n';
+      let total = 0;
+      list.forEach((it, i)=>{
+        const p = it.product;
+        const discounted = p.discount ? Math.round(p.price * (100 - p.discount)/100) : p.price;
+        const line = `${i+1}. ${p.name} | ${p.type} ${p.size} | qty:${it.qty} | ${formatIDR(discounted)}\n`;
+        msg += line;
+        total += discounted * it.qty;
+      });
+      msg += '------------------------\n';
+      msg += 'Total: ' + formatIDR(total) + '\n';
+      msg += 'Metode Bayar: ' + pay + '\n';
+      msg += 'Alamat / Catatan : ' + address + '\n';
+
+      // phone number: ganti ke nomor tujuan Anda (format internasional tanpa +, misal 62812...)
+      const PHONE = '6285295317626';
+      const url = `https://wa.me/${PHONE}?text=${encodeURIComponent(msg)}`;
+      window.open(url,'_blank');
+    });
+
+    // Search (works across base name, type, size)
+    function matchesQuery(prod, q){
+      if (!q) return true;
+      q = q.toLowerCase();
+      if ((prod.name||'').toLowerCase().includes(q)) return true;
+      for(const v of prod.variants){
+        if ((v.type||'').toLowerCase().includes(q)) return true;
+        for(const s of v.sizes) if ((s.size||'').toLowerCase().includes(q)) return true;
+      }
+      return false;
+    }
+    searchInput.addEventListener('input', ()=>{
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = products.filter(p => matchesQuery(p, q));
+      renderGrid(filtered);
+    });
+
+    // Inisialisasi produk dari DEFAULT_PRODUCTS (sudah tergrup)
+    products = DEFAULT_PRODUCTS;
+    renderGrid(products);
+    updateCartUI();
+  </script>
+</body>
+</html>

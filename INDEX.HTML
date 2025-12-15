@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <title>Toko Kabel LAN — Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg1:#eaf4ff; --bg2:#ffffff; --card:#ffffff; --accent:#0b74ff; --muted:#6b7280; --success:#10b981;
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Segoe UI,Arial;margin:0;background:linear-gradient(180deg,var(--bg1),var(--bg2));color:#0f1724;-webkit-font-smoothing:antialiased}
+    header{background:linear-gradient(90deg,rgba(11,116,255,0.08),transparent);padding:18px 20px;display:flex;align-items:center;border-bottom:1px solid #eef2ff}
+    h1{margin:0;font-size:20px;letter-spacing:0.2px}
+    .controls{margin-left:auto;display:flex;gap:12px;align-items:center}
+    .search{padding:10px 14px;border-radius:12px;border:1px solid #e6eefc;width:320px;background:#fff}
+    .container{padding:28px;max-width:1200px;margin:0 auto}
+    .toolbar{display:flex;gap:12px;align-items:center;margin-bottom:18px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+    .card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 30px rgba(12,20,40,0.06);display:flex;flex-direction:column;transition:transform .14s ease,box-shadow .14s ease}
+    .card:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(12,20,40,0.10)}
+    .thumb{height:170px;border-radius:10px;background:#f8fbff;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+    .thumb img{width:100%;height:100%;object-fit:cover}
+    .badge-discount{position:absolute;left:8px;top:8px;background:linear-gradient(90deg,var(--accent),#2b8bff);color:white;padding:6px 8px;border-radius:8px;font-weight:700;font-size:12px}
+    .meta{margin-top:12px;flex:1}
+    .meta .title{font-weight:700;font-size:15px}
+    .meta .sub{font-size:13px;color:var(--muted);margin-top:6px}
+    .price-row{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+    .price{font-weight:800;color:#0b74ff}
+    button{background:var(--accent);color:white;border:none;padding:10px 12px;border-radius:10px;cursor:pointer}
+    .btn-ghost{background:transparent;color:var(--accent);border:1px solid #d7e6ff;padding:8px 10px;border-radius:8px}
+
+    /* Cart sidebar */
+    .cart-btn{position:relative}
+    .cart-count{position:absolute;top:-8px;right:-8px;background:#ff3b30;color:#fff;border-radius:50%;padding:5px 8px;font-size:12px}
+    .cart-drawer{position:fixed;right:18px;top:18px;width:380px;max-height:80vh;background:var(--card);box-shadow:0 18px 60px rgba(10,10,20,0.12);border-radius:12px;overflow:auto;padding:16px;display:none;z-index:50}
+    .cart-item{display:flex;gap:12px;align-items:center;border-bottom:1px solid #f1f5f9;padding:10px 0}
+    .cart-item img{width:64px;height:64px;object-fit:cover;border-radius:8px}
+    .qty{width:64px}
+    .cart-footer{margin-top:12px}
+    .pay-methods{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .pay-methods label{padding:8px;border-radius:8px;border:1px solid #eee;cursor:pointer}
+
+    /* responsive */
+    @media (max-width:1024px){
+      .container{padding:20px}
+      .grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+      .thumb{height:150px}
+    }
+    @media (max-width:720px){
+      .search{width:160px}
+      .grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+      .card{padding:12px;border-radius:10px}
+      .thumb{height:140px}
+      .price-row{flex-direction:column;align-items:flex-start;gap:8px}
+      .price-row button{align-self:stretch;width:100%}
+      .card .meta .title{font-size:14px}
+      .cart-drawer{width:92vw;right:4vw}
+      .controls{gap:8px}
+    }
+    @media (max-width:420px){
+      body{font-size:14px}
+      .search{width:120px}
+      .grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+      .thumb{height:120px}
+      .card{padding:10px}
+      /* make selectors stack and full width */
+      .card select{display:block;width:100%;margin-top:8px}
+      .card select:first-of-type{margin-top:0}
+      .price-row{width:100%}
+      .badge-discount{left:6px;top:6px;padding:5px 6px;font-size:11px}
+      .cart-drawer{right:0;left:0;width:100%;height:72vh;border-radius:12px 12px 0 0}
+    }
+    /* About modal */
+    .modal-overlay{position:fixed;inset:0;background:rgba(10,20,40,0.35);display:none;align-items:center;justify-content:center;z-index:60}
+    .modal{background:var(--card);padding:20px;border-radius:10px;max-width:720px;width:92%;box-shadow:0 10px 40px rgba(10,10,20,0.12)}
+    .nav{display:flex;gap:12px;align-items:center}
+    .nav a{color:var(--accent);text-decoration:none;padding:8px;border-radius:8px}
+  </style>
+</head>
+</head>
+<body>
+  <header>
+    <div style="display:flex;align-items:center;gap:16px;width:100%">
+      <h1 style="margin:0">Rstore - Toko Kabel LAN</h1>
+      <nav class="nav" aria-label="Main navigation">
+        <a href="#home" id="homeLink">Home</a>
+        <a href="#about" id="aboutBtn">Tentang</a>
+      </nav>
+      <div style="margin-left:auto" class="controls">
+        <input id="searchInput" class="search" placeholder="Cari nama, type, ukuran..." />
+        <button id="cartToggle" class="cart-btn">Keranjang <span id="cartCount" class="cart-count" style="display:none">0</span></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="toolbar">
+      <div>Selamat datang di Rstore — pilih produk, tambahkan ke keranjang, lalu checkout cepat lewat WhatsApp.</div>
+      <div style="margin-left:auto">Total produk: <strong id="totalProducts">0</strong></div>
+    </div>
+
+    <div id="grid" class="grid"></div>
+  </div>
+
+  <!-- Cart Drawer -->
+  <div id="cartDrawer" class="cart-drawer" aria-hidden="true">
+    <h3>Keranjang Anda</h3>
+    <div style="margin-bottom:8px">
+      <label for="addressInput" style="font-size:13px;display:block;margin-bottom:6px">Alamat / Catatan (wajib sebelum checkout)</label>
+      <input id="addressInput" type="text" placeholder="Nama, alamat, atau catatan pengiriman" style="width:100%;padding:8px;border-radius:6px;border:1px solid #eee" />
+    </div>
+    <div id="cartItems"></div>
+    <div class="cart-footer">
+      <div>Subtotal: <strong id="subtotal">Rp0</strong></div>
+
+      <div style="margin-top:8px">
+        <div>Pilih metode pembayaran:</div>
+        <div class="pay-methods">
+          <label><input type="radio" name="pay" value="QRIS" checked/> QRIS</label>
+          <label><input type="radio" name="pay" value="Bank Transfer"/> Bank Transfer</label>
+          <label><input type="radio" name="pay" value="Dana"/> Dana</label>
+          <label><input type="radio" name="pay" value="GoPay"/> GoPay</label>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button id="checkoutBtn">Checkout (WhatsApp)</button>
+        <button id="clearCart" class="btn-ghost">Kosongkan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- About Modal -->
+  <div id="aboutModal" class="modal-overlay" role="dialog" aria-hidden="true">
+    <div class="modal">
+      <h2>Tentang Rstore</h2>
+      <p><strong>Rstore</strong> adalah toko online spesialis kabel LAN dan aksesoris jaringan. Kami menyediakan berbagai merk dan tipe kabel berkualitas untuk kebutuhan rumah, kantor, dan instalasi profesional.</p>
+      <h3>Mengapa menjual produk LAN?</h3>
+      <p>Kami fokus pada kabel LAN karena kebutuhan koneksi stabil dan instalasi yang handal sangat penting untuk pengalaman digital sehari-hari — dari streaming sampai sistem bisnis. Menyediakan produk LAN memungkinkan kami membantu pelanggan mendapatkan koneksi yang dapat diandalkan.</p>
+      <h3>Kelebihan toko kami</h3>
+      <ul>
+        <li>Produk asli dari merk terkemuka dan teruji.</li>
+        <li>Harga kompetitif dan transparan.</li>
+        <li>Layanan pesan via WhatsApp untuk proses cepat dan personal.</li>
+        <li>Support teknis singkat untuk membantu pilihan kabel sesuai kebutuhan.</li>
+      </ul>
+      <div style="text-align:right;margin-top:12px"><button id="closeAbout" class="btn-ghost">Tutup</button></div>
+    </div>
+  </div>
+
+  <script>
+    // Jika server akan menyajikan file Excel yang Anda upload ke folder publik,
+    // ubah EXCEL_URL ke lokasi file tersebut. Untuk demo, ada `DEFAULT_PRODUCTS`
+    // yang akan dipakai bila load dari EXCEL_URL gagal atau tidak tersedia.
+    const EXCEL_URL = 'sandbox:/mnt/data/Produk kabel LAN.xlsx';
+
+    // --- DEBUG OVERLAY: tampilkan error runtime di halaman dan console ---
+    (function(){
+      try{
+        const dbg = document.createElement('div');
+        dbg.id = 'debugOverlay';
+        dbg.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:9999;background:rgba(0,0,0,0.8);color:#fff;padding:8px 10px;border-radius:8px;max-width:40vw;max-height:30vh;overflow:auto;font-size:13px;display:none';
+        dbg.innerText = 'Debug: ready';
+        document.addEventListener('DOMContentLoaded', ()=> document.body.appendChild(dbg));
+
+        function show(msg){
+          console.error(msg);
+          dbg.style.display = 'block';
+          const pre = document.createElement('pre'); pre.style.margin='0'; pre.style.whiteSpace='pre-wrap'; pre.textContent = String(msg);
+          dbg.innerHTML = '';
+          dbg.appendChild(pre);
+        }
+
+        window.addEventListener('error', (ev)=>{
+          const m = ev.message + ' \n(' + ev.filename + ':' + ev.lineno + ':' + ev.colno + ')';
+          show(m);
+        });
+        window.addEventListener('unhandledrejection', (ev)=>{
+          const reason = ev.reason && ev.reason.stack ? ev.reason.stack : String(ev.reason);
+          show('UnhandledRejection: ' + reason);
+        });
+      }catch(e){ console.warn('Debug overlay init failed', e); }
+    })();
+
+    // Contoh produk default (dipakai bila tidak ada Excel yang dimuat)
+const DEFAULT_PRODUCTS = [
+  {
+    name: 'KABEL LAN BELDEN', photo:'', variants:[
+      { type:'Cat 5e', sizes:[
+          {size:'1M',price:13000,discount:0},
+          {size:'2M',price:26000,discount:0},
+          {size:'3M',price:39000,discount:0},
+          {size:'5M',price:61750,discount:5},
+          {size:'10M',price:117000,discount:10}
+        ]},
+      { type:'Cat 6', sizes:[
+          {size:'1M',price:19500,discount:0},
+          {size:'2M',price:39000,discount:0},
+          {size:'3M',price:58500,discount:0},
+          {size:'5M',price:92625,discount:5},
+          {size:'10M',price:175500,discount:10}
+        ]},
+      { type:'Cat 7', sizes:[
+          {size:'1M',price:39000,discount:0},
+          {size:'2M',price:78000,discount:0},
+          {size:'3M',price:117000,discount:0},
+          {size:'5M',price:185250,discount:5},
+          {size:'10M',price:351000,discount:10}
+        ]}
+    ]
+  },
+  {
+    name: 'KABEL LAN COMMSCOPE', photo:'', variants:[
+      { type:'Cat 5e', sizes:[
+          {size:'1M',price:10400,discount:0},
+          {size:'2M',price:20800,discount:0},
+          {size:'3M',price:31200,discount:0},
+          {size:'5M',price:49400,discount:5},
+          {size:'10M',price:93600,discount:10}
+        ]},
+      { type:'Cat 6', sizes:[
+          {size:'1M',price:16900,discount:0},
+          {size:'2M',price:33800,discount:0},
+          {size:'3M',price:50700,discount:0},
+          {size:'5M',price:64220,discount:5},
+          {size:'10M',price:76050,discount:10}
+        ]},
+      { type:'Cat 8', sizes:[
+          {size:'1M',price:101400,discount:0},
+          {size:'2M',price:118300,discount:0},
+          {size:'3M',price:135200,discount:0},
+          {size:'5M',price:144495,discount:5},
+          {size:'10M',price:152100,discount:10}
+        ]}
+    ]
+  },
+  {
+    name: 'KABEL LAN VENTION', photo:'', variants:[
+      { type:'Cat 5', sizes:[
+          {size:'1M',price:15600,discount:0},
+          {size:'2M',price:31200,discount:0},
+          {size:'3M',price:46800,discount:0},
+          {size:'5M',price:59280,discount:5},
+          {size:'10M',price:70200,discount:10}
+        ]},
+      { type:'Cat 6', sizes:[
+          {size:'1M',price:18200,discount:0},
+          {size:'2M',price:36400,discount:0},
+          {size:'3M',price:54600,discount:0},
+          {size:'5M',price:69160,discount:5},
+          {size:'10M',price:81900,discount:10}
+        ]},
+      { type:'Cat 7', sizes:[
+          {size:'1M',price:28600,discount:0},
+          {size:'2M',price:57200,discount:0},
+          {size:'3M',price:85800,discount:0},
+          {size:'5M',price:108680,discount:5},
+          {size:'10M',price:128700,discount:10}
+        ]}
+    ]
+  },
+  {
+    name: 'KABEL LAN NYK', photo:'', variants:[
+      { type:'Cat 5e', sizes:[
+          {size:'1M',price:14300,discount:0},
+          {size:'2M',price:28600,discount:0},
+          {size:'3M',price:42900,discount:0},
+          {size:'5M',price:54340,discount:5},
+          {size:'10M',price:64350,discount:10}
+        ]},
+      { type:'Cat 6', sizes:[
+          {size:'1M',price:16900,discount:0},
+          {size:'2M',price:33800,discount:0},
+          {size:'3M',price:50700,discount:0},
+          {size:'5M',price:64220,discount:5},
+          {size:'10M',price:76050,discount:10}
+        ]},
+      { type:'Cat 8', sizes:[
+          {size:'1M',price:41600,discount:0},
+          {size:'2M',price:83200,discount:0},
+          {size:'3M',price:124800,discount:0},
+          {size:'5M',price:158080,discount:5},
+          {size:'10M',price:187200,discount:10}
+        ]}
+    ]
+  },
+  {
+    name: 'KABEL LAN SPECTRA', photo:'', variants:[
+      { type:'Cat 5', sizes:[
+          {size:'1M',price:13000,discount:0},
+          {size:'2M',price:26000,discount:0},
+          {size:'3M',price:39000,discount:0},
+          {size:'5M',price:49400,discount:5},
+          {size:'10M',price:58500,discount:10}
+        ]},
+      { type:'Cat 6e', sizes:[
+          {size:'1M',price:20800,discount:0},
+          {size:'2M',price:41600,discount:0},
+          {size:'3M',price:62400,discount:0},
+          {size:'5M',price:79040,discount:5},
+          {size:'10M',price:93600,discount:10}
+        ]},
+      { type:'Cat 7', sizes:[
+          {size:'1M',price:31200,discount:0},
+          {size:'2M',price:62400,discount:0},
+          {size:'3M',price:93600,discount:0},
+          {size:'5M',price:118560,discount:5},
+          {size:'10M',price:140400,discount:10}
+        ]}
+    ]
+  },
+  {
+    name: 'KABEL LAN ZIMM LINK', photo:'', variants:[
+      { type:'Cat 5e', sizes:[
+          {size:'1M',price:15600,discount:0},
+          {size:'2M',price:31200,discount:0},
+          {size:'3M',price:46800,discount:0},
+          {size:'5M',price:59280,discount:5},
+          {size:'10M',price:70200,discount:10}
+        ]},
+      { type:'Cat 6', sizes:[
+          {size:'1M',price:18200,discount:0},
+          {size:'2M',price:36400,discount:0},
+          {size:'3M',price:54600,discount:0},
+          {size:'5M',price:69160,discount:5},
+          {size:'10M',price:81900,discount:10}
+        ]},
+      { type:'Cat 8', sizes:[
+          {size:'1M',price:46800,discount:0},
+          {size:'2M',price:93600,discount:0},
+          {size:'3M',price:140400,discount:0},
+          {size:'5M',price:177840,discount:5},
+          {size:'10M',price:210600,discount:10}
+        ]}
+    ]
+  },
+  {
+    name: 'KABEL LAN SPC', photo:'', variants:[
+      { type:'Cat 5', sizes:[
+          {size:'1M',price:13000,discount:0},
+          {size:'2M',price:26000,discount:0},
+          {size:'3M',price:39000,discount:0},
+          {size:'5M',price:49400,discount:5},
+          {size:'10M',price:58500,discount:10}
+        ]},
+      { type:'Cat 6e', sizes:[
+          {size:'1M',price:22100,discount:0},
+          {size:'2M',price:44200,discount:0},
+          {size:'3M',price:66300,discount:0},
+          {size:'5M',price:83980,discount:5},
+          {size:'10M',price:99450,discount:10}
+        ]},
+      { type:'Cat 7', sizes:[
+          {size:'1M',price:33800,discount:0},
+          {size:'2M',price:67600,discount:0},
+          {size:'3M',price:101400,discount:0},
+          {size:'5M',price:128440,discount:5},
+          {size:'10M',price:152100,discount:10}
+        ]}
+    ]
+  },
+  {
+    name: 'KABEL LAN DIGILINK', photo:'', variants:[
+      { type:'Cat 5e', sizes:[
+          {size:'1M',price:16900,discount:0},
+          {size:'2M',price:33800,discount:0},
+          {size:'3M',price:50700,discount:0},
+          {size:'5M',price:64220,discount:5},
+          {size:'10M',price:76050,discount:10}
+        ]},
+      { type:'Cat 6', sizes:[
+          {size:'1M',price:19500,discount:0},
+          {size:'2M',price:39000,discount:0},
+          {size:'3M',price:58500,discount:0},
+          {size:'5M',price:74100,discount:5},
+          {size:'10M',price:87750,discount:10}
+        ]},
+      { type:'Cat 8', sizes:[
+          {size:'1M',price:52000,discount:0},
+          {size:'2M',price:104000,discount:0},
+          {size:'3M',price:156000,discount:0},
+          {size:'5M',price:197600,discount:5},
+          {size:'10M',price:234000,discount:10}
+        ]}
+    ]
+  },
+  {
+    name: 'KABEL LAN VASCOLINK', photo:'', variants:[
+      { type:'Cat 5', sizes:[
+          {size:'1M',price:14300,discount:0},
+          {size:'2M',price:28600,discount:0},
+          {size:'3M',price:42900,discount:0},
+          {size:'5M',price:54340,discount:5},
+          {size:'10M',price:64350,discount:10}
+        ]},
+      { type:'Cat 6', sizes:[
+          {size:'1M',price:18200,discount:0},
+          {size:'2M',price:36400,discount:0},
+          {size:'3M',price:54600,discount:0},
+          {size:'5M',price:69160,discount:5},
+          {size:'10M',price:81900,discount:10}
+        ]},
+      { type:'Cat 7', sizes:[
+          {size:'1M',price:36400,discount:0},
+          {size:'2M',price:72800,discount:0},
+          {size:'3M',price:109200,discount:0},
+          {size:'5M',price:138320,discount:5},
+          {size:'10M',price:163800,discount:10}
+        ]}
+    ]
+  },
+  {
+    name: 'KABEL LAN EYOTA', photo:'', variants:[
+      { type:'Cat 5', sizes:[
+          {size:'1M',price:13000,discount:0},
+          {size:'2M',price:26000,discount:0},
+          {size:'3M',price:39000,discount:0},
+          {size:'5M',price:49400,discount:5},
+          {size:'10M',price:58500,discount:10}
+        ]},
+      { type:'Cat 6e', sizes:[
+          {size:'1M',price:23400,discount:0},
+          {size:'2M',price:46800,discount:0},
+          {size:'3M',price:70200,discount:0},
+          {size:'5M',price:88920,discount:5},
+          {size:'10M',price:105300,discount:10}
+        ]},
+      { type:'Cat 8', sizes:[
+          {size:'1M',price:45500,discount:0},
+          {size:'2M',price:91000,discount:0},
+          {size:'3M',price:136500,discount:0},
+          {size:'5M',price:172900,discount:5},
+          {size:'10M',price:204750,discount:10}
+        ]}
+    ]
+  }
+];
+    const grid = document.getElementById('grid');
+    const searchInput = document.getElementById('searchInput');
+    const totalProductsEl = document.getElementById('totalProducts');
+
+    let products = []; // array of product objects
+    const cart = {};// {id: {product, qty}}
+
+    // Utility: format currency
+    function formatIDR(n){
+      if (!isFinite(n)) return '-';
+      return n.toLocaleString('id-ID', {style:'currency', currency:'IDR'});
+    }
+
+    // Tambahkan helper untuk mendapatkan URL gambar produk (pakai photo jika URL absolut, jika tidak pakai picsum seed)
+    function getProductImageURL(p){
+      if (p && p.photo && /^https?:\/\//i.test(String(p.photo))) return p.photo;
+      const seed = encodeURIComponent((p.name||'') + ' ' + (p.variants && p.variants[0] ? p.variants[0].type : ''));
+      return `https://picsum.photos/seed/${seed}/600/420`;
+    }
+
+    // Map excel columns case-insensitive
+    function mapRow(row){
+      const r = {};
+      const keys = Object.keys(row);
+      // possible headers
+      const nameKey = keys.find(k => /nama|name|product|item/i.test(k)) || keys[0];
+      const typeKey = keys.find(k => /type|tipe/i.test(k)) || keys[1] || null;
+      const sizeKey = keys.find(k => /ukuran|size|panjang/i.test(k)) || null;
+      const priceKey = keys.find(k => /harga|price|cost|price_idr/i.test(k)) || keys.find(k=>/rp|idr/i.test(k)) || keys[2] || null;
+      const discKey = keys.find(k => /diskon|discount|disc/i.test(k)) || null;
+      const photoKey = keys.find(k => /foto|image|gambar|img|picture/i.test(k)) || null;
+
+      r.name = row[nameKey] ?? '';
+      r.type = typeKey ? row[typeKey] : '';
+      r.size = sizeKey ? row[sizeKey] : '';
+      r.priceRaw = priceKey ? row[priceKey] : '';
+      r.discount = discKey ? Number(row[discKey]) || 0 : 0;
+      r.photo = photoKey ? row[photoKey] : '';
+
+      // normalize price to number
+      let p = r.priceRaw;
+      if (typeof p === 'string'){
+        p = p.replace(/[^\d,.-]/g, '');
+        p = p.replace(/,(?=\d{3}(?:,|$))/g, '');
+        p = p.replace(/,(?=\d{2}$)/, '.');
+      }
+      r.price = Number(p) || 0;
+      r.id = (r.name + '|' + r.type + '|' + r.size).trim();
+      return r;
+    }
+
+    // Build grouped catalog from flat DEFAULT_PRODUCTS entries.
+    function buildCatalog(list){
+      const groups = {};
+      list.forEach(it=>{
+        // derive base name by removing ' TYPE ...' if present
+        const base = String(it.name).replace(/\s+TYPE\s.*$/i,'').trim();
+        const type = it.type || '';
+        const size = it.size || '';
+        const price = Number(it.price)||0;
+        const discount = Number(it.discount)||0;
+        if (!groups[base]) groups[base] = { name: base, photo: it.photo || '', variants: {} };
+        if (!groups[base].variants[type]) groups[base].variants[type] = { type: type, sizes: [] };
+        groups[base].variants[type].sizes.push({ size, price, discount });
+      });
+      // convert to array
+      return Object.values(groups).map(g=>({
+        name: g.name,
+        photo: g.photo,
+        variants: Object.values(g.variants)
+      }));
+    }
+
+    // Render products grid — simplified card with type & size selectors
+    function renderGrid(list){
+      grid.innerHTML = '';
+      if (!list.length) {
+        grid.innerHTML = '<div style="padding:20px;background:#fff;border-radius:8px">Tidak ada produk</div>';
+        totalProductsEl.textContent = 0;
+        return;
+      }
+      totalProductsEl.textContent = list.length;
+      list.forEach(p => {
+        const card = document.createElement('div'); card.className = 'card';
+        const thumb = document.createElement('div'); thumb.className = 'thumb';
+        const img = document.createElement('img'); img.alt = p.name || 'produk';
+        // gunakan helper untuk menentukan sumber gambar
+        img.src = getProductImageURL(p);
+        thumb.appendChild(img);
+        card.appendChild(thumb);
+
+        const meta = document.createElement('div'); meta.className = 'meta';
+        meta.innerHTML = `<div class="title">${p.name}</div>`;
+        card.appendChild(meta);
+
+        // discount badge (updated when price updates)
+        const badge = document.createElement('div'); badge.className = 'badge-discount'; badge.style.display = 'none';
+        thumb.appendChild(badge);
+
+        // selectors for type and size (build selectors, keep price display separate)
+        const controls = document.createElement('div'); controls.style.marginTop = '8px';
+        const typeSel = document.createElement('select'); typeSel.style.padding='8px'; typeSel.style.borderRadius='6px'; typeSel.style.minWidth='120px'; typeSel.style.minHeight='36px';
+        p.variants.forEach((v, idx)=>{ const opt = document.createElement('option'); opt.value = idx; opt.textContent = v.type || '(no type)'; typeSel.appendChild(opt); });
+        controls.appendChild(typeSel);
+
+        const sizeSel = document.createElement('select'); sizeSel.style.marginLeft='8px'; sizeSel.style.padding='8px'; sizeSel.style.borderRadius='6px'; sizeSel.style.minWidth='120px'; sizeSel.style.minHeight='36px';
+        controls.appendChild(sizeSel);
+
+        const priceInfo = document.createElement('div'); priceInfo.style.marginTop='8px'; priceInfo.style.fontWeight='700'; priceInfo.style.cursor='default';
+        // place controls first (priceInfo will be placed into priceRow later)
+        card.appendChild(controls);
+
+        // populate size options for a given variant (only called when type changes or initial render)
+        function populateSizes(variant){
+          sizeSel.innerHTML = '';
+          variant.sizes.forEach((s, i)=>{
+            const o = document.createElement('option');
+            o.value = i;
+            const label = `${s.size} — ${formatIDR(s.price)}${s.discount?(' (-'+s.discount+'%)'):''}`;
+            o.textContent = label;
+            sizeSel.appendChild(o);
+          });
+          sizeSel.selectedIndex = 0;
+        }
+
+        // update displayed price based on current typeSel and sizeSel
+        function updatePrice(){
+          const variant = p.variants[Number(typeSel.value) || 0];
+          const idx = Number(sizeSel.value) || 0;
+          const s = variant && variant.sizes ? variant.sizes[idx] : null;
+          if (!s){
+            priceInfo.innerHTML = '-';
+            badge.style.display = 'none';
+            return;
+          }
+          if (s.discount && Number(s.discount) > 0){
+            const orig = formatIDR(s.price);
+            const discPrice = formatIDR(Math.round(s.price*(100-Number(s.discount))/100));
+            priceInfo.innerHTML = `
+              <div style="color:var(--muted);text-decoration:line-through">${orig}</div>
+              <div style="font-weight:800;color:#0b74ff;margin-top:6px">${discPrice}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px">(diskon ${s.discount}%)</div>
+            `;
+            badge.style.display = 'block'; badge.textContent = `-${s.discount}%`;
+          } else {
+            priceInfo.innerHTML = `<div style="font-weight:800">${formatIDR(s.price)}</div>`;
+            badge.style.display = 'none';
+          }
+        }
+
+        // wire events: when type changes, repopulate sizes once; when size changes, only update price
+        typeSel.addEventListener('change', ()=>{ const v = p.variants[Number(typeSel.value) || 0]; populateSizes(v); updatePrice(); sizeSel.focus(); });
+        sizeSel.addEventListener('change', updatePrice);
+        // initial populate and price update
+        populateSizes(p.variants[Number(typeSel.value) || 0]);
+        updatePrice();
+
+        const priceRow = document.createElement('div'); priceRow.className = 'price-row';
+        const addBtn = document.createElement('button'); addBtn.textContent = 'Tambah';
+        addBtn.addEventListener('click', ()=>{
+          const variant = p.variants[Number(typeSel.value) || 0];
+          const s = variant.sizes[Number(sizeSel.value) || 0];
+          // simpan foto menggunakan helper agar cart dapat menampilkan ikon
+          const item = { name: p.name, type: variant.type, size: s.size, price: s.price, discount: s.discount || 0, photo: getProductImageURL(p) };
+          addToCart(item, 1);
+        });
+        priceRow.appendChild(priceInfo);
+        priceRow.appendChild(addBtn);
+        card.appendChild(priceRow);
+        grid.appendChild(card);
+      });
+    }
+
+    // Add to cart (create stable id based on name|type|size)
+    function addToCart(product, qty){
+      const id = `${product.name}|${product.type||''}|${product.size||''}`;
+      if (!cart[id]) cart[id] = {product, qty:0};
+      cart[id].qty += qty;
+      if (cart[id].qty < 1) cart[id].qty = 1;
+      updateCartUI();
+    }
+
+    function removeFromCart(id){
+      delete cart[id];
+      updateCartUI();
+    }
+
+    function updateCartUI(){
+      const cartCount = Object.values(cart).reduce((s,i)=> s + i.qty,0);
+      const cartCountEl = document.getElementById('cartCount');
+      if (cartCount) {cartCountEl.style.display='inline-block'; cartCountEl.textContent = cartCount;} else cartCountEl.style.display='none';
+
+      const itemsEl = document.getElementById('cartItems'); itemsEl.innerHTML = '';
+      let subtotal = 0;
+      for (const [id, entry] of Object.entries(cart)){
+        const p = entry.product;
+        const discounted = p.discount ? Math.round(p.price * (100 - p.discount)/100) : p.price;
+        const lineTotal = discounted * entry.qty;
+        subtotal += lineTotal;
+
+        const item = document.createElement('div'); item.className = 'cart-item';
+        // tampilkan ikon produk: gunakan helper untuk mendapatkan url (baik dari p.photo atau picsum)
+        const img = document.createElement('img'); img.src = getProductImageURL(p);
+        item.appendChild(img);
+
+        const info = document.createElement('div'); info.style.flex='1';
+        info.innerHTML = `<div style="font-weight:700">${p.name}</div><div style="font-size:13px;color:#555">${p.type} ${p.size ? ('| ' + p.size) : ''}</div><div style="margin-top:6px">${formatIDR(discounted)} x <input class="qty" data-id="${id}" type="number" min="1" value="${entry.qty}" style="width:70px;padding:6px;border-radius:6px;border:1px solid #eee"/></div>`;
+        item.appendChild(info);
+        const rm = document.createElement('div');
+        rm.innerHTML = `<div style="font-weight:700">${formatIDR(lineTotal)}</div><div style="margin-top:8px"><button class="btn-ghost" data-id="${id}">Hapus</button></div>`;
+        item.appendChild(rm);
+        itemsEl.appendChild(item);
+      }
+      document.getElementById('subtotal').textContent = formatIDR(subtotal || 0);
+
+      // wire qty inputs and delete buttons
+      document.querySelectorAll('.qty').forEach(inp => {
+        inp.addEventListener('change', (e)=>{
+          const id = e.target.dataset.id; const v = Number(e.target.value) || 1; cart[id].qty = v; updateCartUI();
+        });
+      });
+      document.querySelectorAll('.btn-ghost[data-id]').forEach(b=> b.addEventListener('click', (e)=>{
+        const id = e.currentTarget.dataset.id; removeFromCart(id);
+      }));
+    }
+
+    // Toggle cart drawer
+    const cartToggle = document.getElementById('cartToggle');
+    const cartDrawer = document.getElementById('cartDrawer');
+    cartToggle.addEventListener('click', ()=>{
+      cartDrawer.style.display = cartDrawer.style.display === 'block' ? 'none' : 'block';
+    });
+
+    // Close cart drawer when clicking outside it
+    document.addEventListener('click', (e)=>{
+      const isClickInside = cartDrawer.contains(e.target) || cartToggle.contains(e.target);
+      if (!isClickInside && cartDrawer.style.display === 'block'){
+        cartDrawer.style.display = 'none';
+      }
+    });
+
+    // About modal handlers
+    const aboutModal = document.getElementById('aboutModal');
+    const aboutBtnEl = document.getElementById('aboutBtn');
+    const closeAbout = document.getElementById('closeAbout');
+    aboutBtnEl.addEventListener('click', (e)=>{ e.preventDefault(); aboutModal.style.display = 'flex'; aboutModal.setAttribute('aria-hidden','false'); });
+    closeAbout.addEventListener('click', ()=>{ aboutModal.style.display='none'; aboutModal.setAttribute('aria-hidden','true'); });
+    aboutModal.addEventListener('click', (e)=>{ if (e.target === aboutModal){ aboutModal.style.display='none'; aboutModal.setAttribute('aria-hidden','true'); } });
+
+    // Home link scrolls to top
+    document.getElementById('homeLink').addEventListener('click', (e)=>{ e.preventDefault(); window.scrollTo({top:0,behavior:'smooth'}); });
+
+    document.getElementById('clearCart').addEventListener('click', ()=>{ for(const k of Object.keys(cart)) delete cart[k]; updateCartUI(); });
+
+    // Checkout: build message and open WhatsApp (requires alamat diisi)
+    document.getElementById('checkoutBtn').addEventListener('click', ()=>{
+      const list = Object.values(cart);
+      if (!list.length) return alert('Keranjang kosong.');
+      const address = document.getElementById('addressInput').value.trim();
+      if (!address) return alert('Silakan isi Alamat / Catatan sebelum checkout.');
+      const pay = document.querySelector('input[name=pay]:checked').value;
+      // Build plain text message, then encode once for URL
+      let msg = 'Pesanan dari Toko Kabel LAN\n';
+      msg += '========================\n';
+      let total = 0;
+      list.forEach((it, i)=>{
+        const p = it.product;
+        const discounted = p.discount ? Math.round(p.price * (100 - p.discount)/100) : p.price;
+        const line = `${i+1}. ${p.name} | ${p.type} ${p.size} | qty:${it.qty} | ${formatIDR(discounted)}\n`;
+        msg += line;
+        total += discounted * it.qty;
+      });
+      msg += '------------------------\n';
+      msg += 'Total: ' + formatIDR(total) + '\n';
+      msg += 'Metode Bayar: ' + pay + '\n';
+      msg += 'Alamat / Catatan : ' + address + '\n';
+
+      // phone number: ganti ke nomor tujuan Anda (format internasional tanpa +, misal 62812...)
+      const PHONE = '6285295317626';
+      const url = `https://wa.me/${PHONE}?text=${encodeURIComponent(msg)}`;
+      window.open(url,'_blank');
+    });
+
+    // Search (works across base name, type, size)
+    function matchesQuery(prod, q){
+      if (!q) return true;
+      q = q.toLowerCase();
+      if ((prod.name||'').toLowerCase().includes(q)) return true;
+      for(const v of prod.variants){
+        if ((v.type||'').toLowerCase().includes(q)) return true;
+        for(const s of v.sizes) if ((s.size||'').toLowerCase().includes(q)) return true;
+      }
+      return false;
+    }
+    searchInput.addEventListener('input', ()=>{
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = products.filter(p => matchesQuery(p, q));
+      renderGrid(filtered);
+    });
+
+    // Inisialisasi produk dari DEFAULT_PRODUCTS (sudah tergrup)
+    products = DEFAULT_PRODUCTS;
+    renderGrid(products);
+    updateCartUI();
+  </script>
+</body>
+</html>
